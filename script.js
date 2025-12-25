@@ -2,9 +2,36 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const music = document.getElementById('backgroundMusic');
 
-// Set canvas size
-canvas.width = 1200;
-canvas.height = 700;
+// Base dimensions (reference size)
+const BASE_WIDTH = 1200;
+const BASE_HEIGHT = 700;
+
+// Calculate responsive canvas size
+function resizeCanvas() {
+    const maxWidth = window.innerWidth;
+    const maxHeight = window.innerHeight;
+    
+    // Calculate scale to fit screen while maintaining aspect ratio
+    const scaleX = maxWidth / BASE_WIDTH;
+    const scaleY = maxHeight / BASE_HEIGHT;
+    const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond base size
+    
+    canvas.width = BASE_WIDTH * scale;
+    canvas.height = BASE_HEIGHT * scale;
+    
+    // Store scale for drawing operations
+    canvas.scale = scale;
+    
+    // Set CSS size for display
+    canvas.style.width = canvas.width + 'px';
+    canvas.style.height = canvas.height + 'px';
+}
+
+// Initialize canvas size
+resizeCanvas();
+
+// Update on window resize
+window.addEventListener('resize', resizeCanvas);
 
 // Animation state
 let animationFrame = 0;
@@ -16,12 +43,25 @@ const maxLoops = 2;
 
 // Scene timings (slower, more enjoyable)
 const sceneTimings = {
-    scene1: 280,  // Box falling (~4.7 seconds at 60fps)
-    scene2: 360,  // Girl picks up and walks off (~6 seconds)
-    scene3: 900  // Family scene: girl enters, drops box, family gathers, opens, dancing (~15 seconds)
+    scene1: 360,  // Box falling (~6 seconds at 60fps)
+    scene2: 480,  // Girl picks up and walks off (~8 seconds)
+    scene3: 2230  // Family scene: girl enters, drops box, family gathers, opens, dancing (~22 seconds with longer dancing)
 };
 
-// Original family positions (for resetting)
+// Helper function to scale positions
+function scaleX(x) {
+    return x * (canvas.width / BASE_WIDTH);
+}
+
+function scaleY(y) {
+    return y * (canvas.height / BASE_HEIGHT);
+}
+
+function scaleSize(size) {
+    return size * Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+}
+
+// Original family positions (for resetting) - using base coordinates
 const originalFamilyPositions = {
     father: { x: 800, y: 400 },
     mother: { x: 900, y: 400 },
@@ -34,7 +74,7 @@ const originalFamilyPositions = {
     ]
 };
 
-// Characters
+// Characters - positions will be scaled when drawing
 const characters = {
     girl: { x: -100, y: 500, targetX: 200, targetY: 500, state: 'hidden' },
     box: { x: 600, y: -100, targetY: 500, state: 'falling', rotation: 0 },
@@ -68,7 +108,9 @@ const colors = {
 // Draw functions
 function drawStickFigure(x, y, type, danceOffset = 0) {
     ctx.save();
-    ctx.translate(x, y);
+    const scale = Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+    ctx.translate(scaleX(x), scaleY(y));
+    ctx.scale(scale, scale);
     
     // Head
     const headColor = type === 'male' ? colors.male.head : colors.female.head;
@@ -129,12 +171,24 @@ function drawStickFigure(x, y, type, danceOffset = 0) {
         ctx.stroke();
     }
     
+    // Draw smile - moves with the character and shows when dancing
+    if (danceOffset !== 0 || characters.text.visible) {
+        const headY = -40 + Math.sin(danceOffset) * 5;
+        ctx.beginPath();
+        ctx.arc(0, headY + 5, 12, 0, Math.PI);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+    
     ctx.restore();
 }
 
 function drawBox(x, y, rotation) {
     ctx.save();
-    ctx.translate(x, y);
+    const scale = Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+    ctx.translate(scaleX(x), scaleY(y));
+    ctx.scale(scale, scale);
     ctx.rotate(rotation);
     
     // Box
@@ -161,24 +215,32 @@ function drawBox(x, y, rotation) {
 }
 
 function drawTable(x, y) {
+    ctx.save();
+    const scale = Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+    ctx.translate(scaleX(x), scaleY(y));
+    ctx.scale(scale, scale);
+    
     ctx.fillStyle = colors.table;
-    ctx.fillRect(x - 100, y, 200, 20);
+    ctx.fillRect(-100, 0, 200, 20);
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x - 100, y, 200, 20);
+    ctx.strokeRect(-100, 0, 200, 20);
     
     // Table legs
-    ctx.fillRect(x - 100, y + 20, 10, 30);
-    ctx.fillRect(x + 90, y + 20, 10, 30);
-    ctx.strokeRect(x - 100, y + 20, 10, 30);
-    ctx.strokeRect(x + 90, y + 20, 10, 30);
+    ctx.fillRect(-100, 20, 10, 30);
+    ctx.fillRect(90, 20, 10, 30);
+    ctx.strokeRect(-100, 20, 10, 30);
+    ctx.strokeRect(90, 20, 10, 30);
+    
+    ctx.restore();
 }
 
-function drawText(text, x, y, scale, rotation) {
+function drawText(text, x, y, textScale, rotation) {
     ctx.save();
-    ctx.translate(x, y);
+    const scale = Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+    ctx.translate(scaleX(x), scaleY(y));
+    ctx.scale(scale * textScale, scale * textScale);
     ctx.rotate(rotation);
-    ctx.scale(scale, scale);
     
     ctx.font = 'bold 48px Arial';
     ctx.fillStyle = colors.text;
@@ -206,12 +268,14 @@ function drawBackground() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Snowflakes
-    for (let i = 0; i < 50; i++) {
+    const scale = Math.min(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+    const numFlakes = Math.floor(50 * scale);
+    for (let i = 0; i < numFlakes; i++) {
         const x = (i * 37) % canvas.width;
         const y = (animationFrame * 2 + i * 23) % canvas.height;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.arc(x, y, 2 * scale, 0, Math.PI * 2);
         ctx.fill();
     }
 }
@@ -230,8 +294,8 @@ function updateScene() {
     // Scene 1: ONLY box falling (no girl, no family)
     if (frame < sceneTimings.scene1) {
         scene = 1;
-        characters.box.y += 4;  // Slower falling
-        characters.box.rotation += 0.08;  // Slower rotation
+        characters.box.y += 3;  // Slower falling
+        characters.box.rotation += 0.06;  // Slower rotation
         if (characters.box.y > characters.box.targetY) {
             characters.box.y = characters.box.targetY;
             characters.box.state = 'landed';
@@ -261,28 +325,28 @@ function updateScene() {
         }
         
         // Girl appears from side
-        if (scene2Frame < 80) {
+        if (scene2Frame < 100) {
             if (characters.girl.state === 'hidden') {
                 characters.girl.state = 'appearing';
                 characters.girl.x = -100;
             }
-            characters.girl.x = Math.min(150, characters.girl.x + 3);
+            characters.girl.x = Math.min(150, characters.girl.x + 2);
         }
         // Girl walks to box (box is at x: 600 from scene 1)
-        else if (scene2Frame < 200) {
+        else if (scene2Frame < 240) {
             if (characters.girl.x < characters.box.x - 50) {
-                characters.girl.x += 2.5;
+                characters.girl.x += 1.8;
             }
         }
         // Pick up box
-        else if (scene2Frame < 250) {
+        else if (scene2Frame < 300) {
             characters.box.x = characters.girl.x + 30;
             characters.box.y = characters.girl.y - 20;
         }
         // Walk off screen (to the right) - leaving scene 2
         else {
-            if (characters.girl.x < canvas.width + 100) {
-                characters.girl.x += 2.5;
+            if (characters.girl.x < BASE_WIDTH + 100) {
+                characters.girl.x += 1.8;
                 characters.box.x = characters.girl.x + 30;
             }
         }
@@ -304,22 +368,22 @@ function updateScene() {
         }
         
         // Girl enters from left and walks to table
-        if (scene3Frame < 180) {
+        if (scene3Frame < 240) {
             if (characters.girl.x < characters.table.x - 100) {
-                characters.girl.x += 2.5;
+                characters.girl.x += 1.8;
                 characters.box.x = characters.girl.x + 30;
                 characters.box.y = characters.girl.y - 20;
             }
         }
         // Drop box on table
-        else if (scene3Frame < 240) {
+        else if (scene3Frame < 300) {
             characters.box.x = characters.table.x;
             characters.box.y = characters.table.y - 40;
             characters.girl.x = characters.table.x - 100;
         }
-        // Family moves closer to surround the box
-        else if (scene3Frame < 420) {
-            const gatherProgress = (scene3Frame - 240) / 180; // 0 to 1
+        // Family moves closer to surround the box (longer gathering)
+        else if (scene3Frame < 540) {
+            const gatherProgress = (scene3Frame - 300) / 240; // 0 to 1
             
             // Calculate positions around the table
             const centerX = characters.table.x;
@@ -352,9 +416,14 @@ function updateScene() {
                 child.y = startPos.y + (centerY + Math.sin(angles[i + 2]) * radius - startPos.y) * gatherProgress;
             });
         }
-        // Open box, text jumps out
+        // Pause before opening box - longer anticipation
         else if (scene3Frame < 600) {
-            if (!characters.text.visible && scene3Frame >= 420) {
+            // Family is gathered, waiting... (pause for anticipation)
+            // Box is on table, family is around it, but box hasn't opened yet
+        }
+        // Open box, text jumps out
+        else if (scene3Frame < 720) {
+            if (!characters.text.visible && scene3Frame >= 600) {
                 characters.text.visible = true;
                 // Create text particles
                 for (let i = 0; i < 20; i++) {
@@ -368,8 +437,8 @@ function updateScene() {
                 }
             }
             if (characters.text.visible) {
-                characters.text.scale = Math.min(1, characters.text.scale + 0.04);
-                characters.text.rotation = Math.sin(animationFrame * 0.1) * 0.2;
+                characters.text.scale = Math.min(1, characters.text.scale + 0.035);
+                characters.text.rotation = Math.sin(animationFrame * 0.08) * 0.2;
             }
             
             // Update particles
@@ -383,16 +452,20 @@ function updateScene() {
         }
         // Dancing
         else {
-            const danceSpeed = 0.25;
+            const danceSpeed = 0.18;  // Slower dancing
             characters.family.father.danceOffset += danceSpeed;
             characters.family.mother.danceOffset += danceSpeed;
             characters.family.children.forEach(child => {
                 child.danceOffset += danceSpeed;
             });
-            characters.girl.danceOffset = (characters.girl.danceOffset || 0) + danceSpeed;
-            characters.text.rotation = Math.sin(animationFrame * 0.15) * 0.3;
-            characters.text.x = 700 + Math.sin(animationFrame * 0.1) * 50;
-            characters.text.y = 400 + Math.cos(animationFrame * 0.1) * 30;
+            // Ensure girl has danceOffset initialized
+            if (!characters.girl.danceOffset) {
+                characters.girl.danceOffset = 0;
+            }
+            characters.girl.danceOffset += danceSpeed;
+            characters.text.rotation = Math.sin(animationFrame * 0.1) * 0.3;
+            characters.text.x = 700 + Math.sin(animationFrame * 0.07) * 50;
+            characters.text.y = 400 + Math.cos(animationFrame * 0.07) * 30;
         }
     }
 }
@@ -479,18 +552,7 @@ function drawScene() {
             });
         }
         
-        // Draw expressions (smiles) when text is visible
-        if (characters.text.visible) {
-            [characters.family.father, characters.family.mother, ...characters.family.children, characters.girl].forEach(char => {
-                if (char.x && char.y) {
-                    ctx.beginPath();
-                    ctx.arc(char.x, char.y - 40, 12, 0, Math.PI);
-                    ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
-            });
-        }
+        // Smiles are now drawn inside drawStickFigure function, so they move with characters
     }
     
     ctx.restore();
@@ -527,59 +589,98 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// Start animation and music
-function startAnimation() {
-    // Set music properties
-    music.volume = 0.6;
+// Play button element
+const playButton = document.getElementById('playButton');
+const playButtonBtn = playButton ? playButton.querySelector('button') : null;
+
+// Music playback with aggressive autoplay
+function startMusic() {
+    music.volume = 0.7;
     music.preload = 'auto';
-    music.currentTime = 0; // Start from beginning
+    music.currentTime = 0;
     
-    // Try to play music with multiple attempts
     const playMusic = () => {
-        music.currentTime = 0; // Always start from beginning
-        const playPromise = music.play();
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    console.log('Music started playing from beginning');
-                })
-                .catch(err => {
-                    console.log('Audio play failed, will retry on user interaction:', err);
-                    // Add click handler if autoplay fails
-                    document.addEventListener('click', () => {
-                        music.currentTime = 0;
-                        music.play().catch(e => console.log('Audio play failed:', e));
-                    }, { once: true });
-                });
+        if (music.paused) {
+            music.currentTime = 0;
+            const playPromise = music.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('Music started playing');
+                        if (playButton) playButton.style.display = 'none';
+                    })
+                    .catch(err => {
+                        console.log('Autoplay blocked, showing play button');
+                        if (playButton) playButton.style.display = 'block';
+                    });
+            }
+        } else {
+            if (playButton) playButton.style.display = 'none';
         }
     };
     
-    // Try to play immediately when animation starts
+    // Try multiple times with different strategies
     playMusic();
+    setTimeout(playMusic, 100);
+    setTimeout(playMusic, 500);
+    setTimeout(playMusic, 1000);
     
-    // Also try after a short delay
-    setTimeout(playMusic, 300);
+    // Try on any user interaction
+    const interactionEvents = ['click', 'touchstart', 'keydown', 'mousedown'];
+    const startOnInteraction = () => {
+        playMusic();
+        interactionEvents.forEach(event => {
+            document.removeEventListener(event, startOnInteraction);
+        });
+    };
     
+    interactionEvents.forEach(event => {
+        document.addEventListener(event, startOnInteraction, { once: true });
+    });
+    
+    // Play button click handler
+    if (playButtonBtn) {
+        playButtonBtn.addEventListener('click', () => {
+            music.currentTime = 0;
+            music.play().then(() => {
+                playButton.style.display = 'none';
+            }).catch(err => {
+                console.log('Failed to play:', err);
+            });
+        });
+    }
+}
+
+// Start animation and music
+function startAnimation() {
+    startMusic();
     animate();
 }
 
-// Start on page load
-window.addEventListener('load', () => {
+// Start immediately when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAnimation);
+} else {
     startAnimation();
+}
+
+// Also try on window load
+window.addEventListener('load', () => {
+    startMusic();
 });
 
-// Allow click anywhere to start music if autoplay is blocked
-document.addEventListener('click', () => {
-    if (music.paused) {
-        music.currentTime = 0; // Start from beginning
-        music.play().catch(err => console.log('Audio play failed:', err));
-    }
-}, { once: true });
-
-// Also allow canvas click
+// Canvas click to start music
 canvas.addEventListener('click', () => {
     if (music.paused) {
-        music.currentTime = 0; // Start from beginning
+        music.currentTime = 0;
+        music.play().catch(err => console.log('Audio play failed:', err));
+    }
+});
+
+// Touch support for mobile
+canvas.addEventListener('touchstart', () => {
+    if (music.paused) {
+        music.currentTime = 0;
         music.play().catch(err => console.log('Audio play failed:', err));
     }
 });
