@@ -33,11 +33,12 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 1000;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.9);
     padding: 20px 40px;
     border-radius: 10px;
-    border: 2px solid #ffd700;
-    display: none;
+    border: 3px solid #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    display: block; /* Show by default, will be hidden if music plays */
 }
 
 .play-button button {

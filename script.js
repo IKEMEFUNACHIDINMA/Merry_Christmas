@@ -595,31 +595,60 @@ const playButtonBtn = playButton ? playButton.querySelector('button') : null;
 
 // Music playback with aggressive autoplay and error handling
 function startMusic() {
+    // Show play button initially (will hide if autoplay works)
+    if (playButton) {
+        playButton.style.display = 'block';
+    }
+    
     music.volume = 0.7;
     music.preload = 'auto';
     music.currentTime = 0;
     
+    let audioLoaded = false;
+    let audioError = false;
+    
     // Check if audio file loads successfully
     music.addEventListener('error', (e) => {
+        audioError = true;
         console.error('Audio file failed to load:', e);
-        console.log('The audio file may be too large for Vercel. Please host it externally.');
-        // Try to use fallback if available
-        const fallback = document.getElementById('fallbackAudio');
-        if (fallback && music.src !== fallback.src) {
-            console.log('Trying fallback audio source...');
-            music.src = fallback.src;
-            music.load();
-        } else {
-            console.log('No fallback available. Please upload the MP3 to an external host and update the src in index.html');
+        console.error('Error code:', music.error ? music.error.code : 'unknown');
+        console.error('Error message:', music.error ? music.error.message : 'unknown');
+        console.error('Current src:', music.currentSrc || music.src);
+        
+        if (playButton) {
+            playButton.style.display = 'block';
+            const btn = playButton.querySelector('button');
+            if (btn) {
+                btn.textContent = '⚠ Music File Not Found';
+                btn.style.background = '#ff4444';
+            }
         }
     });
     
-    music.addEventListener('canplaythrough', () => {
+    music.addEventListener('loadeddata', () => {
+        audioLoaded = true;
         console.log('Audio file loaded successfully');
     });
     
+    music.addEventListener('canplaythrough', () => {
+        audioLoaded = true;
+        console.log('Audio ready to play');
+    });
+    
     const playMusic = () => {
-        if (music.paused && music.readyState >= 2) { // Check if audio is ready
+        // If there's an error, don't try to play
+        if (audioError) {
+            if (playButton) playButton.style.display = 'block';
+            return;
+        }
+        
+        // Wait for audio to load
+        if (!audioLoaded && music.readyState === 0) {
+            setTimeout(playMusic, 300);
+            return;
+        }
+        
+        if (music.paused) {
             music.currentTime = 0;
             const playPromise = music.play();
             if (playPromise !== undefined) {
@@ -629,31 +658,34 @@ function startMusic() {
                         if (playButton) playButton.style.display = 'none';
                     })
                     .catch(err => {
-                        console.log('Autoplay blocked, showing play button');
+                        console.log('Autoplay blocked:', err);
                         if (playButton) playButton.style.display = 'block';
                     });
+            } else {
+                if (playButton) playButton.style.display = 'block';
             }
-        } else if (music.readyState < 2) {
-            // Audio not loaded yet, wait a bit
-            setTimeout(playMusic, 200);
         } else {
             if (playButton) playButton.style.display = 'none';
         }
     };
     
-    // Try multiple times with different strategies
-    playMusic();
-    setTimeout(playMusic, 100);
-    setTimeout(playMusic, 500);
-    setTimeout(playMusic, 1000);
+    // Wait a bit for audio to start loading, then try to play
+    setTimeout(() => {
+        playMusic();
+    }, 500);
+    
+    setTimeout(() => {
+        playMusic();
+    }, 1000);
+    
+    setTimeout(() => {
+        playMusic();
+    }, 2000);
     
     // Try on any user interaction
     const interactionEvents = ['click', 'touchstart', 'keydown', 'mousedown'];
     const startOnInteraction = () => {
         playMusic();
-        interactionEvents.forEach(event => {
-            document.removeEventListener(event, startOnInteraction);
-        });
     };
     
     interactionEvents.forEach(event => {
@@ -662,15 +694,35 @@ function startMusic() {
     
     // Play button click handler
     if (playButtonBtn) {
-        playButtonBtn.addEventListener('click', () => {
+        playButtonBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('Play button clicked');
+            console.log('Audio readyState:', music.readyState);
+            console.log('Audio error:', music.error);
+            
+            if (music.error) {
+                console.error('Cannot play: Audio file error', music.error);
+                playButtonBtn.textContent = '⚠ File Not Found';
+                return;
+            }
+            
             music.currentTime = 0;
             music.play().then(() => {
+                console.log('Music playing after button click');
                 playButton.style.display = 'none';
             }).catch(err => {
-                console.log('Failed to play:', err);
+                console.error('Failed to play:', err);
+                playButtonBtn.textContent = '⚠ Click Failed';
             });
         });
     }
+    
+    // Also try to play when canvas is clicked
+    canvas.addEventListener('click', () => {
+        if (music.paused && !audioError) {
+            playMusic();
+        }
+    });
 }
 
 // Start animation and music
