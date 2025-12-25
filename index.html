@@ -10,14 +10,8 @@
 <body>
     <canvas id="canvas"></canvas>
     <audio id="backgroundMusic" loop preload="auto">
-        <!-- 
-            IMPORTANT: If the file doesn't load on Vercel, host it externally:
-            1. Upload to GitHub Releases, Cloudinary, or similar service
-            2. Replace the src below with your hosted URL
-            3. Or compress the MP3 file to under 2MB
-        -->
-        <source src="feliz-navidad.mp3" type="audio/mpeg" id="primaryAudio">
-        <source src="./feliz-navidad.mp3" type="audio/mpeg">
+        <source src="/feliz-navidad.mp3" type="audio/mpeg">
+        <source src="feliz-navidad.mp3" type="audio/mpeg">
     </audio>
     <div id="playButton" class="play-button">
         <button>▶ Play Music</button>
