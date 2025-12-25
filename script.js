@@ -593,14 +593,33 @@ function animate() {
 const playButton = document.getElementById('playButton');
 const playButtonBtn = playButton ? playButton.querySelector('button') : null;
 
-// Music playback with aggressive autoplay
+// Music playback with aggressive autoplay and error handling
 function startMusic() {
     music.volume = 0.7;
     music.preload = 'auto';
     music.currentTime = 0;
     
+    // Check if audio file loads successfully
+    music.addEventListener('error', (e) => {
+        console.error('Audio file failed to load:', e);
+        console.log('The audio file may be too large for Vercel. Please host it externally.');
+        // Try to use fallback if available
+        const fallback = document.getElementById('fallbackAudio');
+        if (fallback && music.src !== fallback.src) {
+            console.log('Trying fallback audio source...');
+            music.src = fallback.src;
+            music.load();
+        } else {
+            console.log('No fallback available. Please upload the MP3 to an external host and update the src in index.html');
+        }
+    });
+    
+    music.addEventListener('canplaythrough', () => {
+        console.log('Audio file loaded successfully');
+    });
+    
     const playMusic = () => {
-        if (music.paused) {
+        if (music.paused && music.readyState >= 2) { // Check if audio is ready
             music.currentTime = 0;
             const playPromise = music.play();
             if (playPromise !== undefined) {
@@ -614,6 +633,9 @@ function startMusic() {
                         if (playButton) playButton.style.display = 'block';
                     });
             }
+        } else if (music.readyState < 2) {
+            // Audio not loaded yet, wait a bit
+            setTimeout(playMusic, 200);
         } else {
             if (playButton) playButton.style.display = 'none';
         }
